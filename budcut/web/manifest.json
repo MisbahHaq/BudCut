@@ -1,6 +1,6 @@
 {
-    "name": "budcut",
-    "short_name": "budcut",
+    "name": "BudCut",
+    "short_name": "BudCut",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#FFFFFF",
