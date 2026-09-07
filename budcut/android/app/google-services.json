@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "732613622430",
+    "firebase_url": "https://budcut-308d9-default-rtdb.firebaseio.com",
+    "project_id": "budcut-308d9",
+    "storage_bucket": "budcut-308d9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:732613622430:android:17d974dc6bec3e86e0198f",
+        "android_client_info": {
+          "package_name": "com.example.budcut"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2sMA-HRgiKvAknhKeRmXWWf719ZUqr6E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
