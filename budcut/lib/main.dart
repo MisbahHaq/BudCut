@@ -40,6 +40,12 @@ class BudCutApp extends StatelessWidget {
           ? FutureBuilder<AppState>(
               future: appState,
               builder: (context, snap) {
+                if (snap.hasError) {
+                  return _LoadError(
+                    error: snap.error.toString(),
+                    onRetry: () {},
+                  );
+                }
                 if (!snap.hasData) {
                   return const _Splash();
                 }
@@ -71,19 +77,137 @@ class _AuthGate extends StatelessWidget {
         if (user == null) {
           return const LoginScreen();
         }
-        return FutureBuilder<AppState>(
-          future: AppState.create(user),
-          builder: (context, snap) {
-            if (!snap.hasData) {
-              return const _Splash();
-            }
-            return ChangeNotifierProvider<AppState>.value(
-              value: snap.data!,
-              child: const _Shell(),
-            );
-          },
+        return _AccountLoader(key: ValueKey(user.uid), user: user);
+      },
+    );
+  }
+}
+
+/// Loads the signed-in user's cloud data. Keeps the future stable across
+/// rebuilds and surfaces load errors instead of spinning forever.
+class _AccountLoader extends StatefulWidget {
+  final User user;
+
+  const _AccountLoader({super.key, required this.user});
+
+  @override
+  State<_AccountLoader> createState() => _AccountLoaderState();
+}
+
+class _AccountLoaderState extends State<_AccountLoader> {
+  late Future<AppState> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<AppState> _load() => AppState.create(widget.user)
+      .timeout(const Duration(seconds: 20));
+
+  void _retry() {
+    setState(() => _future = _load());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<AppState>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          return _LoadError(error: snap.error.toString(), onRetry: _retry);
+        }
+        if (!snap.hasData) {
+          return const _Splash();
+        }
+        return ChangeNotifierProvider<AppState>.value(
+          value: snap.data!,
+          child: const _Shell(),
         );
       },
+    );
+  }
+}
+
+class _LoadError extends StatelessWidget {
+  final String error;
+  final VoidCallback onRetry;
+
+  const _LoadError({required this.error, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppTheme.canvas,
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const BrandBadge(),
+                  const SizedBox(height: 28),
+                  Container(
+                    width: 48,
+                    height: 48,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppTheme.rose,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                      border: AppTheme.border2(),
+                      boxShadow: [AppTheme.hardShadow(offset: 3)],
+                    ),
+                    child: const Icon(Icons.cloud_off_outlined,
+                        color: AppTheme.ink, size: 26),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'COULDN\'T LOAD YOUR BUDGET',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                      color: AppTheme.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'We couldn\'t reach your data in the cloud. '
+                    'Make sure Cloud Firestore is enabled with the matching '
+                    'security rules, then check your connection and retry.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppTheme.inkSoft, height: 1.4),
+                  ),
+                  const SizedBox(height: 18),
+                  BrutButton(
+                    label: 'Retry',
+                    icon: Icons.refresh,
+                    color: AppTheme.yellow,
+                    onPressed: onRetry,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    error,
+                    textAlign: TextAlign.center,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: AppTheme.mono,
+                      fontSize: 10,
+                      color: AppTheme.inkSoft,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
