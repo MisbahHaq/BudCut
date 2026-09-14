@@ -1,27 +1,25 @@
 import 'dart:math';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
 import '../currency.dart';
 import '../models/category.dart';
-import '../models/recurring_bill.dart';
 import '../models/transaction.dart';
+import '../services/firestore_service.dart';
 import '../services/seed_data.dart';
-import '../services/storage_service.dart';
 import '../theme.dart';
 
-/// Central application state (ChangeNotifier).
+/// Central application state (ChangeNotifier), backed by Cloud Firestore.
 class AppState extends ChangeNotifier {
-  late StorageService _storage;
+  late FirestoreService _firestore;
   List<CategoryModel> _categories = [];
   List<AppTransaction> _transactions = [];
-  List<RecurringBill> _bills = [];
   num _monthlyBudget = 250000;
   String _currencyCode = 'PKR';
 
   List<CategoryModel> get categories => List.unmodifiable(_categories);
   List<AppTransaction> get transactions => List.unmodifiable(_transactions);
-  List<RecurringBill> get bills => List.unmodifiable(_bills);
   num get monthlyBudget => _monthlyBudget;
   String get currencyCode => _currencyCode;
   Currency get currency => Currencies.byCode(_currencyCode);
@@ -31,58 +29,34 @@ class AppState extends ChangeNotifier {
 
   bool isReady = false;
 
-  static Future<AppState> create() async {
+  /// Loads this user's data from Firestore. A brand-new account is seeded
+  /// with the default category template and a zero budget.
+  static Future<AppState> create(User user) async {
     final state = AppState();
-    state._storage = await StorageService.create();
+    state._firestore = FirestoreService(user.uid);
     await state._load();
     return state;
   }
 
   Future<void> _load() async {
-    _monthlyBudget = _storage.loadBudget();
     // Currency is fixed to PKR.
     _currencyCode = 'PKR';
     Currencies.current.value = Currencies.pkr;
 
-    if (!_storage.isSeeded) {
-      await _freshStart();
-    } else {
-      _categories = _storage
-          .loadCategories()
-          .map(CategoryModel.fromJson)
-          .toList();
-      _transactions = _storage
-          .loadTransactions()
-          .map(AppTransaction.fromJson)
-          .toList();
-      _bills = _storage.loadBills().map(RecurringBill.fromJson).toList();
+    _categories = await _firestore.loadCategories();
+    _transactions = await _firestore.loadTransactions();
+    _monthlyBudget = await _firestore.loadBudget();
+
+    if (_categories.isEmpty && !await _firestore.hasProfile()) {
+      _categories = List.of(SeedData.categories);
+      _monthlyBudget = 0;
+      await _firestore.seedCategories(_categories);
+      await _firestore.setBudget(_monthlyBudget);
     }
 
+    _sortTransactions();
     isReady = true;
     notifyListeners();
-  }
-
-  /// Empty starting state: default category template, zero transactions,
-  /// zero bills and a zero budget. No fake seed data.
-  Future<void> _freshStart() async {
-    _categories = List.of(SeedData.categories);
-    _transactions = [];
-    _bills = [];
-    _monthlyBudget = 0;
-    await _persistAll();
-    await _storage.markSeeded();
-  }
-
-  Future<void> _persistAll() async {
-    await _storage.saveCategories(
-      _categories.map((c) => c.toJson()).toList(),
-    );
-    await _storage.saveTransactions(
-      _transactions.map((t) => t.toJson()).toList(),
-    );
-    await _storage.saveBills(_bills.map((b) => b.toJson()).toList());
-    await _storage.saveBudget(_monthlyBudget);
-    await _storage.saveCurrency(_currencyCode);
   }
 
   // ------------------------------------------------------------------
@@ -119,9 +93,8 @@ class AppState extends ChangeNotifier {
     String merchant = '',
     String notes = '',
     List<String> tags = const [],
-    bool isRecurring = false,
   }) async {
-    _transactions.add(AppTransaction(
+    final tx = AppTransaction(
       id: 'tx-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(9999)}',
       amount: amount,
       date: date,
@@ -129,10 +102,10 @@ class AppState extends ChangeNotifier {
       merchant: merchant,
       notes: notes,
       tags: tags,
-      isRecurring: isRecurring,
-    ));
+    );
+    _transactions.add(tx);
     _sortTransactions();
-    await _persist();
+    await _firestore.addTransaction(tx);
     notifyListeners();
   }
 
@@ -141,14 +114,14 @@ class AppState extends ChangeNotifier {
     if (idx >= 0) {
       _transactions[idx] = tx;
       _sortTransactions();
-      await _persist();
+      await _firestore.updateTransaction(tx);
       notifyListeners();
     }
   }
 
   Future<void> deleteTransaction(String id) async {
     _transactions.removeWhere((t) => t.id == id);
-    await _persist();
+    await _firestore.deleteTransaction(id);
     notifyListeners();
   }
 
@@ -181,7 +154,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> setMonthlyBudget(num value) async {
     _monthlyBudget = value;
-    await _storage.saveBudget(_monthlyBudget);
+    await _firestore.setBudget(_monthlyBudget);
     notifyListeners();
   }
 
@@ -195,14 +168,15 @@ class AppState extends ChangeNotifier {
     num? monthlyCap,
     bool isFixed = false,
   }) async {
-    _categories.add(CategoryModel(
+    final cat = CategoryModel(
       id: 'cat-${DateTime.now().microsecondsSinceEpoch}',
       name: name,
       color: color,
       monthlyCap: monthlyCap,
       isFixed: isFixed,
-    ));
-    await _persist();
+    );
+    _categories.add(cat);
+    await _firestore.addCategory(cat);
     notifyListeners();
   }
 
@@ -210,83 +184,15 @@ class AppState extends ChangeNotifier {
     final idx = _categories.indexWhere((c) => c.id == updated.id);
     if (idx >= 0) {
       _categories[idx] = updated;
-      await _persist();
+      await _firestore.updateCategory(updated);
       notifyListeners();
     }
   }
 
   Future<void> deleteCategory(String id) async {
     _categories.removeWhere((c) => c.id == id);
-    await _persist();
+    await _firestore.deleteCategory(id);
     notifyListeners();
-  }
-
-  // ------------------------------------------------------------------
-  // Recurring bills
-  // ------------------------------------------------------------------
-
-  Future<void> addBill(RecurringBill bill) async {
-    _bills.add(bill);
-    await _persist();
-    notifyListeners();
-  }
-
-  Future<void> updateBill(RecurringBill bill) async {
-    final idx = _bills.indexWhere((b) => b.id == bill.id);
-    if (idx >= 0) {
-      _bills[idx] = bill;
-      await _persist();
-      notifyListeners();
-    }
-  }
-
-  Future<void> deleteBill(String id) async {
-    _bills.removeWhere((b) => b.id == id);
-    await _persist();
-    notifyListeners();
-  }
-
-  num get totalMonthlyLiability =>
-      _bills.where((b) => b.isActive).fold<num>(0,
-          (sum, b) => sum + b.monthlyLiability);
-
-  /// Checks active bills and logs any that are due in the current month and
-  /// not yet recorded. Returns the number of bills logged.
-  Future<int> syncDueBills(DateTime now) async {
-    var logged = 0;
-    for (final bill in _bills.where((b) => b.isActive)) {
-      // Only handle monthly-frequency bills in this quick sync.
-      if (bill.frequency != BillFrequency.monthly) continue;
-
-      final endOfMonth = DateTime(now.year, now.month + 1, 0).day;
-      final day = bill.billingDay.clamp(1, endOfMonth);
-      final dueDate = DateTime(now.year, now.month, day);
-
-      if (dueDate.isAfter(now)) continue;
-
-      final billedAt = dueDate;
-      final already = _transactions.any((t) =>
-          t.isRecurring &&
-          t.categoryId == bill.categoryId &&
-          t.amount == bill.amount &&
-          t.date.year == billedAt.year &&
-          t.date.month == billedAt.month &&
-          t.date.day == billedAt.day);
-
-      if (!already) {
-        await addTransaction(
-          amount: bill.amount,
-          date: billedAt,
-          categoryId: bill.categoryId,
-          merchant: bill.name,
-          notes: 'Auto-logged recurring bill',
-          tags: const ['recurring'],
-          isRecurring: true,
-        );
-        logged++;
-      }
-    }
-    return logged;
   }
 
   // ------------------------------------------------------------------
@@ -331,26 +237,13 @@ class AppState extends ChangeNotifier {
     return list;
   }
 
-  Future<void> _persist() async {
-    await _storage.saveTransactions(
-      _transactions.map((t) => t.toJson()).toList(),
-    );
-    await _storage.saveCategories(
-      _categories.map((c) => c.toJson()).toList(),
-    );
-    await _storage.saveBills(_bills.map((b) => b.toJson()).toList());
-    await _storage.saveBudget(_monthlyBudget);
-    await _storage.saveCurrency(_currencyCode);
-  }
-
-  /// Wipes everything (categories, transactions, bills, budget) to zero so
-  /// the user can start fresh. Currency preference is kept.
+  /// Wipes everything (categories and transactions) to zero and resets the
+  /// budget so the user can start fresh.
   Future<void> resetAll() async {
     _categories = [];
     _transactions = [];
-    _bills = [];
     _monthlyBudget = 0;
-    await _persistAll();
+    await _firestore.resetAll();
     notifyListeners();
   }
 }

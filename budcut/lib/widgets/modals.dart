@@ -44,12 +44,23 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
   final _merchant = TextEditingController();
   String? _categoryId;
   final String _notes = '';
+  DateTime _date = DateTime.now();
 
   @override
   void dispose() {
     _amount.dispose();
     _merchant.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2030),
+    );
+    if (picked != null) setState(() => _date = picked);
   }
 
   void _submit() {
@@ -70,7 +81,7 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
     final cur = Currencies.current.value;
     widget.state.addTransaction(
       amount: cur.toPkr(amt),
-      date: DateTime.now(),
+      date: _date,
       categoryId: cat,
       merchant: _merchant.text.trim(),
       notes: _notes,
@@ -167,6 +178,45 @@ class _QuickAddSheetState extends State<_QuickAddSheet> {
                     ),
                   ),
               ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          GestureDetector(
+            onTap: _pickDate,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.white,
+                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                border: AppTheme.border2(),
+                boxShadow: [AppTheme.hardShadow(offset: 2)],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_today_outlined,
+                      size: 18, color: AppTheme.ink),
+                  const SizedBox(width: 10),
+                  Text(
+                    '${_date.day}/${_date.month}/${_date.year}',
+                    style: const TextStyle(
+                      fontFamily: AppTheme.mono,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.ink,
+                    ),
+                  ),
+                  const Spacer(),
+                  const Text(
+                    'TAP TO CHANGE',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                      color: AppTheme.inkSoft,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -390,11 +440,8 @@ class _FullExpenseSheetState extends State<_FullExpenseSheet> {
   late final TextEditingController _notes;
   DateTime _date;
   String? _categoryId;
-  bool _recurring;
 
-  _FullExpenseSheetState()
-      : _date = DateTime.now(),
-        _recurring = false;
+  _FullExpenseSheetState() : _date = DateTime.now();
 
   @override
   void initState() {
@@ -409,7 +456,6 @@ class _FullExpenseSheetState extends State<_FullExpenseSheet> {
     _notes = TextEditingController(text: e?.notes ?? '');
     _date = e?.date ?? DateTime.now();
     _categoryId = e?.categoryId;
-    _recurring = e?.isRecurring ?? false;
   }
 
   @override
@@ -461,7 +507,6 @@ class _FullExpenseSheetState extends State<_FullExpenseSheet> {
         merchant: _merchant.text.trim(),
         notes: _notes.text.trim(),
         tags: tags,
-        isRecurring: _recurring,
       ));
     } else {
       widget.state.addTransaction(
@@ -471,7 +516,6 @@ class _FullExpenseSheetState extends State<_FullExpenseSheet> {
         merchant: _merchant.text.trim(),
         notes: _notes.text.trim(),
         tags: tags,
-        isRecurring: _recurring,
       );
     }
     Navigator.pop(context);
@@ -601,11 +645,6 @@ class _FullExpenseSheetState extends State<_FullExpenseSheet> {
               prefixIcon: Icon(Icons.notes, size: 20),
             ),
           ),
-          const SizedBox(height: 12),
-          _RecurringToggle(
-            value: _recurring,
-            onChanged: (v) => setState(() => _recurring = v),
-          ),
           const SizedBox(height: 18),
           Row(
             children: [
@@ -689,64 +728,6 @@ class _FullExpenseSheetState extends State<_FullExpenseSheet> {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RecurringToggle extends StatefulWidget {
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  const _RecurringToggle({required this.value, required this.onChanged});
-
-  @override
-  State<_RecurringToggle> createState() => _RecurringToggleState();
-}
-
-class _RecurringToggleState extends State<_RecurringToggle> {
-  bool _down = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => setState(() => _down = true),
-      onTapCancel: () => setState(() => _down = false),
-      onTapUp: (_) => setState(() => _down = false),
-      onTap: () => widget.onChanged(!widget.value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 70),
-        padding: EdgeInsets.only(right: _down ? 1 : 3, bottom: _down ? 1 : 3),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-          decoration: BoxDecoration(
-            color: widget.value ? AppTheme.mint : AppTheme.white,
-            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-            border: AppTheme.border2(),
-            boxShadow: _down ? null : [AppTheme.hardShadow(offset: 2)],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                widget.value
-                    ? Icons.check_box
-                    : Icons.check_box_outline_blank,
-                size: 20,
-                color: AppTheme.ink,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'MARK AS RECURRING',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: AppTheme.ink,
-                ),
-              ),
-            ],
-          ),
         ),
       ),
     );

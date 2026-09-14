@@ -6,7 +6,6 @@ class AppTransaction {
   final String merchant;
   final String notes;
   final List<String> tags;
-  final bool isRecurring;
 
   const AppTransaction({
     required this.id,
@@ -16,7 +15,6 @@ class AppTransaction {
     required this.merchant,
     required this.notes,
     required this.tags,
-    this.isRecurring = false,
   });
 
   AppTransaction copyWith({
@@ -27,7 +25,6 @@ class AppTransaction {
     String? merchant,
     String? notes,
     List<String>? tags,
-    bool? isRecurring,
   }) {
     return AppTransaction(
       id: id ?? this.id,
@@ -37,7 +34,6 @@ class AppTransaction {
       merchant: merchant ?? this.merchant,
       notes: notes ?? this.notes,
       tags: tags ?? this.tags,
-      isRecurring: isRecurring ?? this.isRecurring,
     );
   }
 
@@ -50,7 +46,6 @@ class AppTransaction {
       'merchant': merchant,
       'notes': notes,
       'tags': tags,
-      'isRecurring': isRecurring,
     };
   }
 
@@ -63,7 +58,6 @@ class AppTransaction {
       merchant: (json['merchant'] as String?) ?? '',
       notes: (json['notes'] as String?) ?? '',
       tags: (json['tags'] as List<dynamic>? ?? []).cast<String>(),
-      isRecurring: (json['isRecurring'] as bool?) ?? false,
     );
   }
 }

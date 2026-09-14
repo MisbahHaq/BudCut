@@ -298,10 +298,6 @@ class _TransactionListState extends State<TransactionList> {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (t.isRecurring) ...[
-                      const SizedBox(width: 6),
-                      Icon(Icons.refresh, size: 12, color: AppTheme.ink),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 2),

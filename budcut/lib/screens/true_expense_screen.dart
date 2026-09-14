@@ -37,7 +37,7 @@ class TrueExpenseScreen extends StatelessWidget {
     final varFrac = budget > 0 ? (variable / budget).toDouble() : 0.0;
     final bufferFrac = budget > 0 ? (unspent / budget).toDouble() : 0.0;
 
-    final committed = state.totalMonthlyLiability;
+    final committed = fixed;
     final trueObligation = committed;
     final safeBuffer = (budget - trueObligation).clamp(0, budget);
 
@@ -131,7 +131,8 @@ class TrueExpenseScreen extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: _metric(context, 'Committed liability',
-                  state.formatValue(committed), 'per month (recurring)',
+                  state.formatValue(committed),
+                  'fixed commitments this month',
                   AppTheme.ink),
             ),
           ],

@@ -99,7 +99,7 @@ class CategoryManagerScreen extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         const Text(
-          'Clears transactions, bills, categories and budget to zero.',
+          'Clears transactions, categories and budget to zero.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: AppTheme.inkSoft),
         ),
@@ -122,7 +122,7 @@ class CategoryManagerScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Reset all data?'),
         content: const Text(
-          'Deletes every transaction, bill and category and sets the '
+          'Deletes every transaction and category and sets the '
           'budget to 0. This cannot be undone.',
         ),
         actions: [

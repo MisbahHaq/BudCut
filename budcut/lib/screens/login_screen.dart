@@ -205,7 +205,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
                   const Text(
-                    'Your budget data stays local to this device.',
+                    'Your budget is synced to your account in the cloud.',
                     style: TextStyle(fontSize: 11, color: AppTheme.inkSoft),
                   ),
                 ],

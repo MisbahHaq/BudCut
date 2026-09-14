@@ -9,8 +9,6 @@ import 'screens/custom_range_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/monthly_screen.dart';
-import 'screens/quarterly_screen.dart';
-import 'screens/recurring_bills_screen.dart';
 import 'screens/true_expense_screen.dart';
 import 'screens/weekly_screen.dart';
 import 'services/app_state.dart';
@@ -23,14 +21,14 @@ Future<void> main() async {
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  final appState = Future(() async => await AppState.create());
-  runApp(BudCutApp(appState: appState));
+  runApp(const BudCutApp());
 }
 
 class BudCutApp extends StatelessWidget {
-  final Future<AppState> appState;
+  /// Optional pre-built state used by tests to exercise the splash path.
+  final Future<AppState>? appState;
 
-  const BudCutApp({super.key, required this.appState});
+  const BudCutApp({super.key, this.appState});
 
   @override
   Widget build(BuildContext context) {
@@ -38,19 +36,21 @@ class BudCutApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'BudCut',
       theme: AppTheme.light(),
-      home: FutureBuilder<AppState>(
-        future: appState,
-        builder: (context, snap) {
-          if (!snap.hasData) {
-            return const _Splash();
-          }
-          final state = snap.data!;
-          return ChangeNotifierProvider<AppState>.value(
-            value: state,
-            child: const _AuthGate(),
-          );
-        },
-      ),
+      home: appState != null
+          ? FutureBuilder<AppState>(
+              future: appState,
+              builder: (context, snap) {
+                if (!snap.hasData) {
+                  return const _Splash();
+                }
+                final state = snap.data!;
+                return ChangeNotifierProvider<AppState>.value(
+                  value: state,
+                  child: const _AuthGate(),
+                );
+              },
+            )
+          : const _AuthGate(),
     );
   }
 }
@@ -71,7 +71,18 @@ class _AuthGate extends StatelessWidget {
         if (user == null) {
           return const LoginScreen();
         }
-        return const _Shell();
+        return FutureBuilder<AppState>(
+          future: AppState.create(user),
+          builder: (context, snap) {
+            if (!snap.hasData) {
+              return const _Splash();
+            }
+            return ChangeNotifierProvider<AppState>.value(
+              value: snap.data!,
+              child: const _Shell(),
+            );
+          },
+        );
       },
     );
   }
@@ -125,10 +136,8 @@ const _tabs = [
   (icon: Icons.grid_view_outlined, label: 'Dashboard'),
   (icon: Icons.calendar_view_week_outlined, label: 'Weekly'),
   (icon: Icons.calendar_month_outlined, label: 'Monthly'),
-  (icon: Icons.insights_outlined, label: 'Quarterly'),
   (icon: Icons.date_range_outlined, label: 'Custom'),
   (icon: Icons.balance_outlined, label: 'True Exp'),
-  (icon: Icons.repeat_outlined, label: 'Recurring'),
   (icon: Icons.tune_outlined, label: 'Categories'),
 ];
 
@@ -165,10 +174,8 @@ class _ShellState extends State<_Shell> {
                   DashboardScreen(state: state),
                   WeeklyScreen(state: state),
                   MonthlyScreen(state: state),
-                  QuarterlyScreen(state: state),
                   CustomRangeScreen(state: state),
                   TrueExpenseScreen(state: state),
-                  RecurringBillsScreen(state: state),
                   CategoryManagerScreen(state: state),
                 ],
               ),
